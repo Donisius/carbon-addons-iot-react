@@ -2,11 +2,7 @@ import { Component, EventEmitter, Input, OnInit, Output, TemplateRef } from '@an
 import { AIListItem } from './list-item/ai-list-item.class';
 import { IconService } from 'carbon-components-angular';
 import { Bee32 } from '@carbon/icons';
-
-export enum SelectionType {
-  SINGLE = 'single',
-  MULTI = 'multi',
-}
+import { SelectionType } from './list.types';
 
 @Component({
   selector: 'ai-list',
@@ -33,7 +29,8 @@ export enum SelectionType {
         </ng-container>
         <div
           *ngIf="!items || items.length < 1"
-          class="iot--list--empty-state iot--list--empty-state__full-height"
+          class="iot--list--empty-state"
+          [ngClass]="{ 'iot--list--empty-state__full-height': isFullHeight }"
           (drop)="isDragging ? handleDrop(null, 0) : undefined"
           (dragover)="$event.preventDefault()"
         >
@@ -178,6 +175,7 @@ export class AIListComponent implements OnInit {
    * If a `hasSearch` is true, this is emitted when search value is changed.
    */
   @Output() onSearch = new EventEmitter<string>();
+  @Output() selected = new EventEmitter<any>();
 
   @Output() isDraggingChange = new EventEmitter<boolean>();
   @Output() draggedItemChange = new EventEmitter<AIListItem>();
@@ -248,6 +246,7 @@ export class AIListComponent implements OnInit {
     } else {
       this.onSingleSelect(this.items, selectedItem.id);
     }
+    this.selected.emit(selectedItem)
   }
 
   handleSearch(searchString: string) {
