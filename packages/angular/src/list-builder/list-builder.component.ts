@@ -1,9 +1,8 @@
 import { AfterViewInit, Component, Input, OnInit, TemplateRef, ViewChild } from '@angular/core';
 import { IconService } from 'carbon-components-angular';
 import { AIListComponent } from '../list/ai-list.component';
-import { AIListItem } from '../list/list-item/ai-list-item.class';
 import { ArrowRight16, Subtract16 } from '@carbon/icons';
-import { EditingStyle } from './list-builder-types';
+import { AIListBuilderItem } from './list-builder-item.class';
 
 @Component({
   selector: 'ai-list-builder',
@@ -11,37 +10,52 @@ import { EditingStyle } from './list-builder-types';
     <div class='iot--list-builder__container'>
       <div class='iot--list-builder__all'>
         <ai-list
-          #allItemsList
-          [title]='allItemsListTitle'
-          [selectionType]='editingStyle === "two-column-multi" ? "multi" : null'
+          #list
+          [title]='listTitle'
+          selectionType='multi'
           [items]="items"
-          [hasSearch]="allItemsListHasSearch"
-          (selected)="handleSelect($event)">
+          [hasSearch]="listHasSearch">
         </ai-list>
       </div>
       <div class='iot--list-builder__selected'>
         <ai-list
           #selectedItemsList
+          [items]='selectedItems'
           [title]='selectedItemsListTitle'
-          [itemsDraggable]='editingStyle === "two-column-multi"'
-          [items]="selectedItems"
           [hasSearch]="selectedItemsListHasSearch">
         </ai-list>
       </div>
     </div>
+
+    <ng-template #addButton let-addFunction="addFunction">
+      <button
+        ibmButton='ghost'
+        size='sm'
+        [iconOnly]='true'
+        (click)='addFunction()'>
+        <svg class='bx--btn__icon' ibmIcon='arrow--right' size='16'></svg>
+      </button>
+    </ng-template>
+
+    <ng-template #removeButton let-removeFunction="removeFunction">
+      <button
+        ibmButton='ghost'
+        size='sm'
+        [iconOnly]='true'
+        (click)='removeFunction()'>
+        <svg class='bx--btn__icon' ibmIcon='subtract' size='16'></svg>
+      </button>
+    </ng-template>
   `
 })
 export class AIListBuilderComponent implements AfterViewInit, OnInit {
-  @Input() items: AIListItem[] = [];
-  @Input() selectedItems: AIListItem[] = [];
+  @Input() items: AIListBuilderItem[] = [];
 
-  @Input() allItemsListTitle = 'All items';
+  @Input() listTitle = 'All items';
   @Input() selectedItemsListTitle = 'Selected items';
 
-  @Input() allItemsListHasSearch = true;
+  @Input() listHasSearch = true;
   @Input() selectedItemsListHasSearch = false;
-
-  @Input() editingStyle: EditingStyle = EditingStyle.TWO_COLUMN;
 
   /**
    * Additional list item props to pass into the 'All items' list.
@@ -57,8 +71,10 @@ export class AIListBuilderComponent implements AfterViewInit, OnInit {
   @ViewChild('addButton') @Input() addButton: TemplateRef<any>;
   @ViewChild('removeButton') @Input() removeButton: TemplateRef<any>;
 
-  @ViewChild('allItemsList') allItemsListComponent: AIListComponent;
+  @ViewChild('list') listComponent: AIListComponent;
   @ViewChild('selectedItemsList') selectedItemsListComponent: AIListComponent;
+
+  selectedItems: AIListBuilderComponent[] = [];
 
   constructor(protected iconService: IconService) {}
 
@@ -68,82 +84,22 @@ export class AIListBuilderComponent implements AfterViewInit, OnInit {
   }
 
   ngAfterViewInit() {
-    Object.assign(this.allItemsListComponent, this.allItemsListComponent, this.listProps);
+    Object.assign(this.listComponent, this.listComponent, this.listProps);
     Object.assign(this.selectedItemsListComponent, this.selectedItemsListComponent, this.selectedListProps);
 
-    if (this.editingStyle === EditingStyle.TWO_COLUMN) {
-      this.initializeRowActions(this.items);
-    }
+    this.selectedItems = this.items.map(item => item.createAddedItem(this.removeButton));
+
+    this.initializeRowActions(this.items);
   }
 
-  addAddButton(item: AIListItem) {
-    item.rowActions = this.addButton;
-    item.rowActionsContext = {
-      $implicit: {
-        onClick: () => { this.handleAdd(item); }
-      }
-    }
-  }
-
-  addRemoveButton(item: AIListItem) {
-    item.rowActions = this.removeButton;
-    item.rowActionsContext = {
-      $implicit: {
-        onClick: () => { this.handleRemove(item); }
-      }
-    }
-  }
-
-  handleAdd(item: AIListItem) {
-    const newItem = new AIListItem(item);
-
-    if (this.editingStyle === EditingStyle.TWO_COLUMN_MULTI) {
-      newItem.isDraggable = true;
-      newItem.isSelectable = false;
-      newItem.selected = false;
-    } else {
-      const index = this.items.findIndex((listItem) => item.id === listItem.id);
-      this.items.splice(index, 1);
-    }
-
-    this.addRemoveButton(newItem);
-    this.selectedItems.push(newItem);
-  }
-
-  handleRemove(item: AIListItem) {
-    const newItem = new AIListItem(item);
-
-    if (this.editingStyle === EditingStyle.TWO_COLUMN_MULTI) {
-      this.items.forEach((listItem) => {
-        if (listItem.id === item.id) {
-          listItem.selected = false;
-        }
-      });
-    } else {
-      this.addAddButton(newItem);
-      this.items.push(newItem);
-    }
-
-    const index = this.selectedItems.findIndex((listItem) => item.id === listItem.id);
-    this.selectedItems.splice(index, 1);
-  }
-
-  handleSelect(item: AIListItem) {
-    if (item.selected) {
-      this.handleAdd(item);
-    } else {
-      this.handleRemove(item);
-    }
-  }
-
-  protected initializeRowActions(items: AIListItem[]) {
+  protected initializeRowActions(items: AIListBuilderItem[]) {
     items.forEach((item) => {
       if (item.hasChildren()) {
         this.initializeRowActions(item.items);
       }
 
-      if (item.rowActions === undefined) {
-        this.addAddButton(item);
+      if (!item.isSelectable) {
+        item.rowActions = item.rowActions !== undefined ? item.rowActions : this.addButton;
       }
     });
   }

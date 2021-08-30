@@ -28,7 +28,7 @@ import { SelectionType } from './list.types';
         >
         </ng-container>
         <div
-          *ngIf="!items || items.length < 1"
+          *ngIf="!items || items.length < 1 || noItemsDisplayed"
           class="iot--list--empty-state"
           [ngClass]="{ 'iot--list--empty-state__full-height': isFullHeight }"
           (drop)="isDragging ? handleDrop(null, 0) : undefined"
@@ -117,6 +117,8 @@ export class AIListComponent implements OnInit {
    */
   @Input() itemsDraggable: boolean;
 
+  @Input() allowDropOutsideParents = true;
+
   @Input() set isDragging(isDragging: boolean) {
     let shouldEmit = false;
     if (this._isDragging !== isDragging) {
@@ -180,6 +182,10 @@ export class AIListComponent implements OnInit {
   @Output() isDraggingChange = new EventEmitter<boolean>();
   @Output() draggedItemChange = new EventEmitter<AIListItem>();
 
+  get noItemsDisplayed() {
+    return this.items.every((item) => !item.includes(this.searchString));
+  }
+
   searchString = '';
 
   protected _isDragging = false;
@@ -217,13 +223,16 @@ export class AIListComponent implements OnInit {
   }
 
   handleDragOver(dragEvent: DragEvent, receiver: AIListItem) {
+    const isDroppingWithinParent = (receiver !== null && receiver.hasItemAsFirstChild(this.draggedItem)) ||
+      (receiver === null && this.items.some(listItem => listItem === this.draggedItem));
     // Only allow dropping if:
     // 1. The dragged item is not being dropped onto one of its' own children.
     // 2. The dragged item is not being dropped onto itself.
     if (
       this.draggedItem &&
       !this.draggedItem.hasItem(receiver) &&
-      (receiver === null || receiver.id !== this.draggedItem.id)
+      (receiver === null || receiver.id !== this.draggedItem.id) &&
+      (this.allowDropOutsideParents || isDroppingWithinParent)
     ) {
       dragEvent.preventDefault();
     }
