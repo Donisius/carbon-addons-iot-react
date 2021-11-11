@@ -37,14 +37,37 @@ simpleModel.setHeader([
   [null, new TableHeaderItem({ data: 'hwer1' }), new TableHeaderItem({ data: 'hwer2' })],
 ]);
 
+simpleModel.setData([
+  [
+    new TableItem({ data: 'h1_data' }),
+    new TableItem({ data: 'h2_data_1' }),
+    new TableItem({ data: 'h2_data_2' })
+  ],
+  [
+    new TableItem({ data: 'h1_data' }),
+    new TableItem({ data: 'h2_data_1' }),
+    new TableItem({ data: 'h2_data_2' })
+  ],
+  [
+    new TableItem({ data: 'h1_data' }),
+    new TableItem({ data: 'h2_data_1' }),
+    new TableItem({ data: 'h2_data_2' })
+  ],
+  [
+    new TableItem({ data: 'h1_data' }),
+    new TableItem({ data: 'h2_data_1' }),
+    new TableItem({ data: 'h2_data_2' })
+  ]
+]);
+
 const complexModel = new AITableModel();
 
 complexModel.setHeader([
   [
     new TableHeaderItem({ data: 'h1' }),
     new TableHeaderItem({ data: 'h2', colSpan: 2 }),
-    new TableHeaderItem({ data: 'h3', colSpan: 3 }),
     new TableHeaderItem({ data: 'h4', rowSpan: 4 }),
+    new TableHeaderItem({ data: 'h3', colSpan: 3 }),
   ],
   [
     new TableHeaderItem({ data: 'h11' }),
@@ -53,37 +76,28 @@ complexModel.setHeader([
     new TableHeaderItem({ data: 'h31', rowSpan: 2 }),
     new TableHeaderItem({ data: 'h32', rowSpan: 3 }),
     new TableHeaderItem({ data: 'h33' }),
-    null,
   ],
   [
     new TableHeaderItem({ data: 'h12', rowSpan: 2 }),
     new TableHeaderItem({ data: 'h222' }),
     new TableHeaderItem({ data: 'h331' }),
-    null,
-    null,
-    null,
-    null,
   ],
   [
     new TableHeaderItem({ data: 'h223' }),
     new TableHeaderItem({ data: 'h312' }),
     new TableHeaderItem({ data: 'h332' }),
-    null,
-    null,
-    null,
-    null,
   ],
 ]);
 
 complexModel.setData([
   [
     new TableItem({ data: 'h1_data' }),
-    new TableItem({ data: 'h2_data' }),
-    new TableItem({ data: 'h2_data' }),
-    new TableItem({ data: 'h3_data' }),
-    new TableItem({ data: 'h3_data' }),
-    new TableItem({ data: 'h3_data' }),
+    new TableItem({ data: 'h2_data_1' }),
+    new TableItem({ data: 'h2_data_2' }),
     new TableItem({ data: 'h4_data' }),
+    new TableItem({ data: 'h3_data_1' }),
+    new TableItem({ data: 'h3_data_2' }),
+    new TableItem({ data: 'h3_data_3' }),
   ],
 ]);
 
@@ -109,7 +123,7 @@ storiesOf('Components/Table/Column customization', module)
       <app-demo-icons></app-demo-icons>
 		`,
       props: {
-        model: simpleModel,
+        model: simpleModel
       },
     };
   })
@@ -125,9 +139,13 @@ storiesOf('Components/Table/Column customization', module)
       </ai-column-customization-button>
       <ibm-placeholder></ibm-placeholder>
       <app-demo-icons></app-demo-icons>
+      <button (click)="onClick()">click 1</button>
 		`,
       props: {
         model: complexModel,
+        onClick(): function() {
+          this.model.moveColumn(3, 1, 0)
+        },
       },
     };
   });

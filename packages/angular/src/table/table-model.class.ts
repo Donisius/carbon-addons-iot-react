@@ -46,6 +46,8 @@ export class AITableModel implements PaginationModel {
    */
   protected static COUNT = 0;
 
+  protected static HEADER_COUNT = 0;
+
   dataChange = new Subject();
   rowsSelectedChange = new Subject<number>();
   rowsExpandedChange = new Subject<number>();
@@ -196,7 +198,95 @@ export class AITableModel implements PaginationModel {
 
     this.header = newHeader as TableHeaderItem[][];
 
+    this.initializeHeaderMetaData(this.header);
+
     this.dataChange.next();
+  }
+
+  protected getViewIndex(colIndex, rowIndex, header) {
+    let id = header[rowIndex][colIndex].metadata.id;
+    let parentId = header[rowIndex][colIndex].metadata.parentId;
+    let indexOffset = 0;
+
+    for (let i = rowIndex - 1; i >= 0; i--) {
+      let parentHeader;
+      // Find parent header, this loop is to account for row spans.
+      for (let j = i; j >= 0; j--) {
+        parentHeader = header[j].find(headerItem => headerItem?.metadata?.id === parentId);
+        if (parentHeader) {
+          i = j;
+          break;
+        }
+      }
+      const parentChildrenIds = parentHeader?.metadata?.childIds;
+      const precedingChildIds = parentChildrenIds?.slice(0, parentChildrenIds.indexOf(id));
+
+      if (precedingChildIds?.length) {
+        indexOffset += header[i + 1]
+          .filter((headerItem) => precedingChildIds.includes(headerItem?.metadata?.id))
+          .reduce((total, headerItem) => total += headerItem?.colSpan || 1, 0)
+      }
+
+      id = parentHeader?.metadata.id;
+      parentId = parentHeader?.metadata?.parentId;
+    }
+
+    const projectedIndex = this.actualIndexToProjectedIndices(
+      this.header[0].findIndex((headerItem) => headerItem?.metadata?.id === id),
+      this.header[0]
+    );
+
+    return projectedIndex[0] + indexOffset;
+  }
+
+  protected initializeHeaderMetaData(header: TableHeaderItem[][]) {
+    const availableHeaderItems = header.map((headerRow) => headerRow.filter((headerItem) => headerItem !== null));
+
+    this.setHeaderIds(header[0], availableHeaderItems);
+  }
+
+  protected setHeaderIds(
+    headerRow: TableHeaderItem[],
+    availableHeaderItems: TableHeaderItem[][],
+    rowIndex = 0,
+    parentId = null
+  ) {
+    return headerRow
+      .filter((headerItem) => headerItem !== null)
+      .map((headerItem) => {
+        const headerId = `header-${AITableModel.HEADER_COUNT++}`;
+
+        const colSpan = headerItem?.colSpan || 1;
+        const rowSpan = headerItem?.rowSpan || 1;
+
+        if (rowIndex + rowSpan >= this.header.length) {
+          headerItem.metadata = {
+            ...headerItem.metadata,
+            id: headerId,
+            parentId
+          }
+          return headerId;
+        }
+
+        let spaceLeft = colSpan;
+        const availableChildren = availableHeaderItems[rowIndex + rowSpan];
+        const children = [];
+
+        while (spaceLeft > 0 && availableChildren.length) {
+          const nextChild = availableChildren.shift();
+          spaceLeft -= nextChild?.colSpan || 1;
+          children.push(nextChild);
+        }
+
+        headerItem.metadata = {
+          ...headerItem.metadata,
+          id: headerId,
+          parentId,
+          childIds: this.setHeaderIds(children, availableHeaderItems, rowIndex + rowSpan, headerId),
+        }
+
+        return headerId;
+      })
   }
 
   setItem(rowIndex: number, columnIndex: number, item: TableItem) {
@@ -710,6 +800,26 @@ export class AITableModel implements PaginationModel {
     // ignore everything above rowIndex
     // find the "projected indices" of the header column we're moving
     const projectedIndices = this.actualIndexToProjectedIndices(indexFrom, this.header[rowIndex]);
+
+    const indexToProjectedIndices = this.actualIndexToProjectedIndices(indexTo, this.header[rowIndex]);
+    let indexToOffset = 0;
+    // if (indexTo > indexFrom) {
+    //   indexToOffset = indexToProjectedIndices.length > 2 ? indexToProjectedIndices[indexToProjectedIndices.length - 1] - indexToProjectedIndices[0] : 0;
+    // }
+    const indexFromViewIndex = this.getViewIndex(indexFrom - (indexFrom > this.header[rowIndex].length - 1 ? 1 : 0), rowIndex, this.header);
+    const indexToViewIndex = this.getViewIndex(indexTo - (indexTo > this.header[rowIndex].length - 1 ? 1 : 0), rowIndex, this.header);
+    console.log("Index from:", indexFromViewIndex, "Index To:", indexToViewIndex, "offset", indexToOffset);
+
+    // move the data columns as well
+    for (let dataRowIndex = 0; dataRowIndex < this._data.length; dataRowIndex++) {
+      // this.moveMultipleToIndex(Array.from({length: projectedIndices.length}, (_, k) => k + indexFromViewIndex), indexToViewIndex + indexToOffset, this._data[dataRowIndex]);
+      this.swapMultiple(
+        Array.from({length: projectedIndices.length}, (_, k) => k + indexFromViewIndex),
+        Array.from({length: indexToProjectedIndices.length}, (_, k) => k + indexToViewIndex),
+        this._data[dataRowIndex]
+      )
+    }
+
     // based on those indices, find the "actual indices" of child rows
     for (let nextRowIndex = rowIndex; nextRowIndex < this.header.length; nextRowIndex++) {
       const actualIndices = this.projectedIndicesToActualIndices(
@@ -719,10 +829,48 @@ export class AITableModel implements PaginationModel {
       // move them to the right place (based on the "projected indexTo")
       this.moveMultipleToIndex(actualIndices, indexTo, this.header[nextRowIndex]);
     }
+  }
 
-    // move the data columns as well
-    for (let dataRowIndex = 0; dataRowIndex < this._data.length; dataRowIndex++) {
-      this.moveMultipleToIndex(projectedIndices, indexTo, this._data[dataRowIndex]);
+  protected swapMultiple(indices: number[], toIndices: number[], list: TableHeaderItem[] | TableItem[]) {
+    // assumes indices is sorted low to high and continuous
+    // NOTE might need to generalize it
+    const blockStart = indices[0];
+    const blockEnd = indices[indices.length - 1];
+
+    const blockToStart = toIndices[0];
+    const blockToEnd = toIndices[toIndices.length - 1];
+
+    // if moving to left
+    if (blockStart > blockToEnd) {
+      // console.log("MOVING LEFT!")
+      const block = list.splice(blockStart, blockEnd - blockStart + 1);
+      list.splice.apply(list, ([blockToStart, 0] as any[]).concat(block));
+
+      const currentBlockToStartIndex = blockToStart + blockEnd - blockStart + 1;
+      const currentBlockToEndIndex = blockToStart + blockEnd - blockStart + 1 + blockToEnd - blockToStart + 1;
+
+      const blockTo = list.slice(currentBlockToStartIndex, currentBlockToEndIndex);
+
+      const difference = blockStart - blockToEnd - 1;
+      console.log(difference)
+      list.splice.apply(list, ([currentBlockToStartIndex + difference, 0] as any[]).concat(blockTo));
+      list.splice(currentBlockToStartIndex, blockToEnd - blockToStart + 1);
+    } else {
+      console.log("MOVING RIGHT!", "indices", indices, "toIndices", toIndices)
+      // if moving to right
+      const block = list.slice(blockStart, blockEnd + 1);
+      console.log("block", block, "putting it at", blockToEnd + 1)
+      list.splice.apply(list, ([blockToEnd + 1, 0] as any[]).concat(block));
+      list.splice(blockStart, blockEnd - blockStart + 1);
+
+      // console.log("list after moving h2 hopefully", JSON.parse(JSON.stringify(list)))
+
+      const difference = blockToStart - blockEnd - 1;
+      console.log(difference)
+
+      const blockTo = list.splice(blockToEnd - difference - (blockToEnd - blockToStart + 1), blockToEnd - blockToStart + 1);
+      console.log("BLOCHE too", blockTo)
+      list.splice.apply(list, ([blockStart, 0] as any[]).concat(blockTo));
     }
   }
 

@@ -182,7 +182,9 @@ export class AIColumnCustomizationModal extends BaseModal {
         let indexTo =
           headerRow.findIndex((headerItem) => headerItem === prevItem) + (colIndex > 0 ? 1 : 0);
 
-        this.model.moveColumn(indexFrom, indexTo, rowIndex);
+        if (indexFrom !== indexTo) {
+          this.model.moveColumn(indexFrom, indexTo, rowIndex);
+        }
       });
     });
   }
