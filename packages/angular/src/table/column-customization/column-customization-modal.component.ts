@@ -178,11 +178,11 @@ export class AIColumnCustomizationModal extends BaseModal {
 
         const prevItem = colIndex > 0 ? newHeaderRow[colIndex - 1] : newHeaderRow[colIndex];
 
-        const indexFrom = headerRow.findIndex((headerItem) => headerItem === newHeaderItem);
-        let indexTo =
-          headerRow.findIndex((headerItem) => headerItem === prevItem) + (colIndex > 0 ? 1 : 0);
+        const indexFrom = headerRow.indexOf(newHeaderItem);
+        let indexTo = headerRow.indexOf(prevItem);
 
         if (indexFrom !== indexTo) {
+          console.log(`this.model.moveColumn(${indexFrom}, ${indexTo}, ${rowIndex})`)
           this.model.moveColumn(indexFrom, indexTo, rowIndex);
         }
       });

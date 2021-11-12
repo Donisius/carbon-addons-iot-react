@@ -1,9 +1,9 @@
 import { boolean, select, withKnobs } from '@storybook/addon-knobs';
 import { action } from '@storybook/addon-actions';
 import { moduleMetadata, storiesOf } from '@storybook/angular';
-import { TableHeaderItem, TableItem } from 'carbon-components-angular';
+import { TableHeaderItem } from 'carbon-components-angular';
 
-import { AITableModel } from './table-model.class';
+import { AITableModel, AITableItem } from './table-model.class';
 import { AITableModule } from './table.module';
 
 const simpleModel = new AITableModel();
@@ -21,20 +21,20 @@ simpleModel.setHeader([
 
 simpleModel.setData([
   [
-    new TableItem({ data: 'Name 1' }),
-    new TableItem({ data: 'qwer' }),
-    new TableItem({ data: 'qwer1' }),
+    new AITableItem({ data: 'Name 1' }),
+    new AITableItem({ data: 'qwer' }),
+    new AITableItem({ data: 'qwer1' }),
   ],
-  [new TableItem({ data: 'Name 3' }), new TableItem({ data: 'zwer', colSpan: 2 }), null],
+  [new AITableItem({ data: 'Name 3' }), new AITableItem({ data: 'zwer', colSpan: 2 }), null],
   [
-    new TableItem({ data: 'Name 2' }),
-    new TableItem({ data: 'swer' }),
-    new TableItem({ data: 'swer1' }),
+    new AITableItem({ data: 'Name 2' }),
+    new AITableItem({ data: 'swer' }),
+    new AITableItem({ data: 'swer1' }),
   ],
   [
-    new TableItem({ data: 'Name 4' }),
-    new TableItem({ data: 'twer' }),
-    new TableItem({ data: 'twer1' }),
+    new AITableItem({ data: 'Name 4' }),
+    new AITableItem({ data: 'twer' }),
+    new AITableItem({ data: 'twer1' }),
   ],
 ]);
 

@@ -1,5 +1,9 @@
-import { PaginationModel, TableHeaderItem, TableItem, TableRow } from 'carbon-components-angular';
+import { HeaderItem, PaginationModel, TableHeaderItem, TableItem, TableRow } from 'carbon-components-angular';
 import { Subject } from 'rxjs';
+
+export class AITableItem extends TableItem {
+  metadata: any;
+}
 
 export type HeaderType = number | 'select' | 'expand';
 
@@ -99,7 +103,7 @@ export class AITableModel implements PaginationModel {
   /**
    * Used in `data`
    */
-  protected _data: TableItem[][] = [[]];
+  protected _data: AITableItem[][] = [[]];
 
   /**
    * The number of models instantiated, this is to make sure each table has a different
@@ -136,7 +140,7 @@ export class AITableModel implements PaginationModel {
    *
    * Make sure all rows are the same length to keep the column count accurate.
    */
-  setData(newData: TableItem[][]) {
+  setData(newData: AITableItem[][]) {
     if (!newData || (Array.isArray(newData) && newData.length === 0)) {
       newData = [[]];
     }
@@ -179,7 +183,67 @@ export class AITableModel implements PaginationModel {
       });
     }
 
+    this.initializeHeaderMetaData(this.header);
+
+    const columnParentHeaderIds: string[][] = new Array(this._data[0].length).fill(new Array());
+
+    this.header.forEach((row, i) => {
+      row.filter((v) => v !== null).forEach((col, j) => {
+        const viewIndex = this.getViewIndex(j, i, this.header);
+        const headerId = col?.metadata?.id;
+        const colSpan = col?.colSpan || 1;
+
+        for (let i = 0; i < colSpan; i++) {
+          columnParentHeaderIds[viewIndex + i] = [...columnParentHeaderIds[viewIndex + i], headerId];
+        }
+      })
+    });
+
+    this._data.forEach((row) => {
+      row.forEach((col, i) => {
+        col.metadata = {
+          ...col.metadata,
+          parentHeaderIds: columnParentHeaderIds[i]
+        }
+      });
+    });
+
     this.dataChange.next();
+  }
+
+  protected getViewIndex(colIndex, rowIndex, header) {
+    let id = header[rowIndex][colIndex].metadata.id;
+    let parentId = header[rowIndex][colIndex].metadata.parentId;
+    let indexOffset = 0;
+
+    for (let i = rowIndex - 1; i >= 0; i--) {
+      let parentHeader;
+      // Find parent header, this loop is to account for row spans.
+      for (let j = i; j >= 0; j--) {
+        parentHeader = header[j].find(headerItem => headerItem?.metadata?.id === parentId);
+        if (parentHeader) {
+          i = j;
+          break;
+        }
+      }
+      const parentChildrenIds = parentHeader?.metadata?.childIds;
+      const children = header[i + (parentHeader?.rowSpan || 1)].filter((headerItem) => parentChildrenIds.includes(headerItem.metadata.id))
+      const precedingChildren = children?.slice(0, children.indexOf(children.find(child => child.metadata.id === id)));
+
+      if (precedingChildren?.length) {
+        indexOffset += precedingChildren.reduce((total, headerItem) => total += headerItem?.colSpan || 1, 0)
+      }
+
+      id = parentHeader?.metadata.id;
+      parentId = parentHeader?.metadata?.parentId;
+    }
+
+    const projectedIndex = this.actualIndexToProjectedIndices(
+      this.header[0].findIndex((headerItem) => headerItem?.metadata?.id === id),
+      this.header[0]
+    );
+
+    return projectedIndex[0] + indexOffset;
   }
 
   /**
@@ -201,42 +265,6 @@ export class AITableModel implements PaginationModel {
     this.initializeHeaderMetaData(this.header);
 
     this.dataChange.next();
-  }
-
-  protected getViewIndex(colIndex, rowIndex, header) {
-    let id = header[rowIndex][colIndex].metadata.id;
-    let parentId = header[rowIndex][colIndex].metadata.parentId;
-    let indexOffset = 0;
-
-    for (let i = rowIndex - 1; i >= 0; i--) {
-      let parentHeader;
-      // Find parent header, this loop is to account for row spans.
-      for (let j = i; j >= 0; j--) {
-        parentHeader = header[j].find(headerItem => headerItem?.metadata?.id === parentId);
-        if (parentHeader) {
-          i = j;
-          break;
-        }
-      }
-      const parentChildrenIds = parentHeader?.metadata?.childIds;
-      const precedingChildIds = parentChildrenIds?.slice(0, parentChildrenIds.indexOf(id));
-
-      if (precedingChildIds?.length) {
-        indexOffset += header[i + 1]
-          .filter((headerItem) => precedingChildIds.includes(headerItem?.metadata?.id))
-          .reduce((total, headerItem) => total += headerItem?.colSpan || 1, 0)
-      }
-
-      id = parentHeader?.metadata.id;
-      parentId = parentHeader?.metadata?.parentId;
-    }
-
-    const projectedIndex = this.actualIndexToProjectedIndices(
-      this.header[0].findIndex((headerItem) => headerItem?.metadata?.id === id),
-      this.header[0]
-    );
-
-    return projectedIndex[0] + indexOffset;
   }
 
   protected initializeHeaderMetaData(header: TableHeaderItem[][]) {
@@ -286,10 +314,10 @@ export class AITableModel implements PaginationModel {
         }
 
         return headerId;
-      })
+      });
   }
 
-  setItem(rowIndex: number, columnIndex: number, item: TableItem) {
+  setItem(rowIndex: number, columnIndex: number, item: AITableItem) {
     this._data[rowIndex][columnIndex] = item;
     // TODO make sure changes are reflected in the table
   }
@@ -423,7 +451,7 @@ export class AITableModel implements PaginationModel {
    *
    * @param index
    */
-  row(index: number): TableItem[] {
+  row(index: number): AITableItem[] {
     return this._data[this.realRowIndex(index)];
   }
 
@@ -432,7 +460,7 @@ export class AITableModel implements PaginationModel {
    *
    * Use `row()` instead.
    */
-  rows(): TableItem[][] {
+  rows(): AITableItem[][] {
     return this._data;
   }
 
@@ -440,7 +468,7 @@ export class AITableModel implements PaginationModel {
    * Adds a row to the `index`th row or appends to table if index not provided.
    *
    * If row is shorter than other rows or not provided, it will be padded with
-   * empty `TableItem` elements.
+   * empty `AITableItem` elements.
    *
    * If row is longer than other rows, others will be extended to match so no data is lost.
    *
@@ -451,11 +479,11 @@ export class AITableModel implements PaginationModel {
    * @param [row]
    * @param [index]
    */
-  addRow(row?: TableItem[], index?: number) {
+  addRow(row?: AITableItem[], index?: number) {
     // if table empty create table with row
     if (!this._data || this._data.length === 0 || this._data[0].length === 0) {
-      let newData = new Array<Array<TableItem>>();
-      newData.push(row ? row : [new TableItem()]); // row or one empty one column row
+      let newData = new Array<Array<AITableItem>>();
+      newData.push(row ? row : [new AITableItem()]); // row or one empty one column row
       this.setData(newData);
 
       return;
@@ -465,9 +493,9 @@ export class AITableModel implements PaginationModel {
     const columnCount = this._data[0].length;
 
     if (row == null) {
-      realRow = new Array<TableItem>();
+      realRow = new Array<AITableItem>();
       for (let i = 0; i < columnCount; i++) {
-        realRow.push(new TableItem());
+        realRow.push(new AITableItem());
       }
     }
 
@@ -475,7 +503,7 @@ export class AITableModel implements PaginationModel {
       // extend the length of realRow
       const difference = columnCount - realRow.length;
       for (let i = 0; i < difference; i++) {
-        realRow.push(new TableItem());
+        realRow.push(new AITableItem());
       }
     } else if (realRow.length > columnCount) {
       // extend the length of header
@@ -491,7 +519,7 @@ export class AITableModel implements PaginationModel {
         let currentRow = this._data[i];
         difference = realRow.length - currentRow.length;
         for (let j = 0; j < difference; j++) {
-          currentRow.push(new TableItem());
+          currentRow.push(new AITableItem());
         }
       }
     }
@@ -585,8 +613,8 @@ export class AITableModel implements PaginationModel {
    *
    * @param index
    */
-  column(index: number): TableItem[] {
-    let column = new Array<TableItem>();
+  column(index: number): AITableItem[] {
+    let column = new Array<AITableItem>();
     const ri = this.realColumnIndex(index);
     const rc = this._data.length;
 
@@ -602,7 +630,7 @@ export class AITableModel implements PaginationModel {
    * Adds a column to the `index`th column or appends to table if index not provided.
    *
    * If column is shorter than other columns or not provided, it will be padded with
-   * empty `TableItem` elements.
+   * empty `AITableItem` elements.
    *
    * If column is longer than other columns, others will be extended to match so no data is lost.
    *
@@ -613,12 +641,12 @@ export class AITableModel implements PaginationModel {
    * @param [column]
    * @param [index]
    */
-  addColumn(column?: TableItem[], index?: number) {
+  addColumn(column?: AITableItem[], index?: number) {
     // if table empty create table with row
     if (!this._data || this._data.length === 0 || this._data[0].length === 0) {
-      let newData = new Array<Array<TableItem>>();
+      let newData = new Array<Array<AITableItem>>();
       if (column == null) {
-        newData.push([new TableItem()]);
+        newData.push([new AITableItem()]);
       } else {
         for (let i = 0; i < column.length; i++) {
           let item = column[i];
@@ -642,7 +670,7 @@ export class AITableModel implements PaginationModel {
       // append to end
       for (let i = 0; i < rc; i++) {
         let row = this._data[i];
-        row.push(column == null || column[i] == null ? new TableItem() : column[i]);
+        row.push(column == null || column[i] == null ? new AITableItem() : column[i]);
       }
       // update header if not already set by user
       if (this.header.length > 0 && this.header[0].length < this._data[0].length) {
@@ -659,7 +687,7 @@ export class AITableModel implements PaginationModel {
       // insert
       for (let i = 0; i < rc; i++) {
         let row = this._data[i];
-        row.splice(ci, 0, column == null || column[i] == null ? new TableItem() : column[i]);
+        row.splice(ci, 0, column == null || column[i] == null ? new AITableItem() : column[i]);
       }
       // update header if not already set by user
       if (this.header.length > 0 && this.header[0].length < this._data[0].length) {
@@ -797,81 +825,108 @@ export class AITableModel implements PaginationModel {
    * |  f  |  g  |  h  |  j  |  i  |
    */
   moveColumn(indexFrom: number, indexTo: number, rowIndex = 0) {
-    // ignore everything above rowIndex
-    // find the "projected indices" of the header column we're moving
-    const projectedIndices = this.actualIndexToProjectedIndices(indexFrom, this.header[rowIndex]);
+    const nested = this.tabularToNested(this.header[0], this.header, this._data);
+    this.moveNested(indexFrom, indexTo, nested, rowIndex);
+    const {header, data} = this.nestedToTabular(nested, new Array(this.header.length).fill([]), new Array(this._data.length).fill([]), 0);
+    this.header = header;
+    this._data = data;
+  }
 
-    const indexToProjectedIndices = this.actualIndexToProjectedIndices(indexTo, this.header[rowIndex]);
-    let indexToOffset = 0;
-    // if (indexTo > indexFrom) {
-    //   indexToOffset = indexToProjectedIndices.length > 2 ? indexToProjectedIndices[indexToProjectedIndices.length - 1] - indexToProjectedIndices[0] : 0;
-    // }
-    const indexFromViewIndex = this.getViewIndex(indexFrom - (indexFrom > this.header[rowIndex].length - 1 ? 1 : 0), rowIndex, this.header);
-    const indexToViewIndex = this.getViewIndex(indexTo - (indexTo > this.header[rowIndex].length - 1 ? 1 : 0), rowIndex, this.header);
-    console.log("Index from:", indexFromViewIndex, "Index To:", indexToViewIndex, "offset", indexToOffset);
+  moveNested(indexFrom: number, indexTo: number, nested: any, rowIndex = 0, currentLevel = 0) {
+    if (rowIndex === 0) {
+      const indexFromElement = nested.find(obj => obj.index === indexFrom);
+      const indexToElement = nested.find(obj => obj.index === indexTo);
 
-    // move the data columns as well
-    for (let dataRowIndex = 0; dataRowIndex < this._data.length; dataRowIndex++) {
-      // this.moveMultipleToIndex(Array.from({length: projectedIndices.length}, (_, k) => k + indexFromViewIndex), indexToViewIndex + indexToOffset, this._data[dataRowIndex]);
-      this.swapMultiple(
-        Array.from({length: projectedIndices.length}, (_, k) => k + indexFromViewIndex),
-        Array.from({length: indexToProjectedIndices.length}, (_, k) => k + indexToViewIndex),
-        this._data[dataRowIndex]
-      )
+      if (indexFromElement && indexToElement) {
+        const relativeIndexFrom = nested.indexOf(indexFromElement);
+        const relativeIndexTo = nested.indexOf(indexToElement);
+        this.moveMultipleToIndex([relativeIndexFrom], relativeIndexTo, nested);
+      }
+      return;
     }
 
-    // based on those indices, find the "actual indices" of child rows
-    for (let nextRowIndex = rowIndex; nextRowIndex < this.header.length; nextRowIndex++) {
-      const actualIndices = this.projectedIndicesToActualIndices(
-        projectedIndices,
-        this.header[nextRowIndex]
-      );
-      // move them to the right place (based on the "projected indexTo")
-      this.moveMultipleToIndex(actualIndices, indexTo, this.header[nextRowIndex]);
+    for (let i = 0; i < nested.length; i++) {
+      const headerObj = nested[i];
+      const rowSpan = headerObj.headerItem?.rowSpan || 1;
+      if (currentLevel === rowIndex - 1) {
+        const indexFromElement = headerObj.children.find(obj => obj.index === indexFrom);
+        const indexToElement = headerObj.children.find(obj => obj.index === indexTo);
+
+        if (indexFromElement && indexToElement) {
+          const relativeIndexFrom = headerObj.children.indexOf(indexFromElement);
+          const relativeIndexTo = headerObj.children.indexOf(indexToElement);
+          this.moveMultipleToIndex([relativeIndexFrom], relativeIndexTo, headerObj.children);
+          return;
+        }
+      } else {
+        this.moveNested(indexFrom, indexTo, headerObj.children, rowIndex, currentLevel + rowSpan);
+      }
     }
   }
 
-  protected swapMultiple(indices: number[], toIndices: number[], list: TableHeaderItem[] | TableItem[]) {
-    // assumes indices is sorted low to high and continuous
-    // NOTE might need to generalize it
-    const blockStart = indices[0];
-    const blockEnd = indices[indices.length - 1];
+  tabularToNested(headerRow: TableHeaderItem[], header: TableHeaderItem[][], data: AITableItem[][], rowIndex = 0, relativeIndex = 0) {
+    return headerRow
+      .filter(Boolean)
+      .map((headerItem, i) => {
+        const colSpan = headerItem?.colSpan || 1;
+        const rowSpan = headerItem?.rowSpan || 1;
+        const childIds = headerItem.metadata.childIds;
 
-    const blockToStart = toIndices[0];
-    const blockToEnd = toIndices[toIndices.length - 1];
+        if (rowIndex + rowSpan >= this.header.length) {
+          return {
+            headerItem,
+            index: relativeIndex + i,
+            children: [],
+            columnDataIndices: data[0].reduce((indices, tableItem, i) => {
+              if (tableItem.metadata.parentHeaderIds.includes(headerItem.metadata.id)) {
+                return [...indices, i];
+              }
 
-    // if moving to left
-    if (blockStart > blockToEnd) {
-      // console.log("MOVING LEFT!")
-      const block = list.splice(blockStart, blockEnd - blockStart + 1);
-      list.splice.apply(list, ([blockToStart, 0] as any[]).concat(block));
+              return indices;
+            }, [])
+          }
+        }
 
-      const currentBlockToStartIndex = blockToStart + blockEnd - blockStart + 1;
-      const currentBlockToEndIndex = blockToStart + blockEnd - blockStart + 1 + blockToEnd - blockToStart + 1;
+        const children = header[rowIndex + rowSpan].filter(headerItem => childIds.includes(headerItem.metadata.id));
+        const index = header[rowIndex + rowSpan].indexOf(children[0]);
 
-      const blockTo = list.slice(currentBlockToStartIndex, currentBlockToEndIndex);
+        return {
+          headerItem,
+          children: this.tabularToNested(children, header, data, rowIndex + rowSpan, index),
+          index: relativeIndex + i,
+          columnDataIndices: []
+        }
+      });
+  }
 
-      const difference = blockStart - blockToEnd - 1;
-      console.log(difference)
-      list.splice.apply(list, ([currentBlockToStartIndex + difference, 0] as any[]).concat(blockTo));
-      list.splice(currentBlockToStartIndex, blockToEnd - blockToStart + 1);
-    } else {
-      console.log("MOVING RIGHT!", "indices", indices, "toIndices", toIndices)
-      // if moving to right
-      const block = list.slice(blockStart, blockEnd + 1);
-      console.log("block", block, "putting it at", blockToEnd + 1)
-      list.splice.apply(list, ([blockToEnd + 1, 0] as any[]).concat(block));
-      list.splice(blockStart, blockEnd - blockStart + 1);
+  nestedToTabular(nestedHeader: any, header: any, data: any, rowIndex = 0) {
+    nestedHeader.forEach((headerObj) => {
+      const rowSpan = headerObj.headerItem?.rowSpan || 1;
+      header[rowIndex] = [...header[rowIndex], headerObj.headerItem];
 
-      // console.log("list after moving h2 hopefully", JSON.parse(JSON.stringify(list)))
+      if (headerObj.columnDataIndices.length) {
+        const blockStart = headerObj.columnDataIndices[0];
+        const blockEnd = headerObj.columnDataIndices[headerObj.columnDataIndices.length - 1];
 
-      const difference = blockToStart - blockEnd - 1;
-      console.log(difference)
+        for (let i = 0; i < data.length; i++) {
+          console.log("block start", blockStart, "blockEnd", blockEnd, this._data[i].slice(blockStart, blockEnd))
+          data[i] = [...data[i], ...this._data[i].slice(blockStart, blockEnd + 1)]
+        }
+      }
 
-      const blockTo = list.splice(blockToEnd - difference - (blockToEnd - blockToStart + 1), blockToEnd - blockToStart + 1);
-      console.log("BLOCHE too", blockTo)
-      list.splice.apply(list, ([blockStart, 0] as any[]).concat(blockTo));
-    }
+      if (rowIndex + rowSpan >= this.header.length) {
+        return;
+      }
+
+      const children = headerObj.children;
+
+      this.nestedToTabular(children, header, data, rowIndex + rowSpan);
+    });
+
+    return {
+      header,
+      data
+    };
   }
 
   /**
@@ -910,19 +965,19 @@ export class AITableModel implements PaginationModel {
    */
   pushRowStateToModelData() {
     for (let i = 0; i < this._data.length; i++) {
-      const rowSelectedMark = new TableItem();
+      const rowSelectedMark = new AITableItem();
       rowSelectedMark.data = this.rowsSelected[i];
       this._data[i].push(rowSelectedMark);
 
-      const rowExpandedMark = new TableItem();
+      const rowExpandedMark = new AITableItem();
       rowExpandedMark.data = this.rowsExpanded[i];
       this._data[i].push(rowExpandedMark);
 
-      const rowContext = new TableItem();
+      const rowContext = new AITableItem();
       rowContext.data = this.rowsContext[i];
       this._data[i].push(rowContext);
 
-      const rowClass = new TableItem();
+      const rowClass = new AITableItem();
       rowClass.data = this.rowsClass[i];
       this._data[i].push(rowClass);
     }
@@ -994,7 +1049,7 @@ export class AITableModel implements PaginationModel {
    * Checks if row is disabled or not.
    */
   isRowDisabled(index: number) {
-    const row = this._data[index] as TableRow;
+    const row = this._data[index] as any;
     return !!row.disabled;
   }
 
@@ -1053,11 +1108,11 @@ export class AITableModel implements PaginationModel {
   }
 
   /**
-   * @param itemArray TableItem[] | TableHeaderItem[]
+   * @param itemArray AITableItem[] | TableHeaderItem[]
    * @returns the number of columns as if now cells were merged
    */
   protected projectedRowLength(itemArray: any[], rowIndex?: number, matrix?: any[][]) {
-    // `any[]` should be `TableItem[] | TableHeaderItem[]` but typescript
+    // `any[]` should be `AITableItem[] | TableHeaderItem[]` but typescript
     if (rowIndex === undefined || matrix === undefined) {
       return this.projectedRowLengthSimple(itemArray);
     }
@@ -1087,7 +1142,7 @@ export class AITableModel implements PaginationModel {
    */
   protected projectedIndexToActualIndex(
     projectedIndex: number,
-    list: TableHeaderItem[] | TableItem[]
+    list: TableHeaderItem[] | AITableItem[]
   ) {
     let index = 0;
     for (let i = 0; i < list.length; i++) {
@@ -1107,7 +1162,7 @@ export class AITableModel implements PaginationModel {
    */
   protected actualIndexToProjectedIndices(
     actualIndex: number,
-    list: TableHeaderItem[] | TableItem[]
+    list: TableHeaderItem[] | AITableItem[]
   ) {
     // find the starting projected index
     let startingIndex = 0;
@@ -1122,7 +1177,7 @@ export class AITableModel implements PaginationModel {
 
   protected projectedIndicesToActualIndices(
     projectedIndices: number[],
-    list: TableHeaderItem[] | TableItem[]
+    list: TableHeaderItem[] | AITableItem[]
   ) {
     const actualIndicesSet = new Set();
 
@@ -1133,7 +1188,7 @@ export class AITableModel implements PaginationModel {
     return Array.from(actualIndicesSet).sort() as number[];
   }
 
-  protected moveMultipleToIndex(indices: number[], index, list: TableHeaderItem[] | TableItem[]) {
+  protected moveMultipleToIndex(indices: number[], index, list: TableHeaderItem[] | AITableItem[]) {
     // assumes indices is sorted low to high and continuous
     // NOTE might need to generalize it
     const blockStart = indices[0];
@@ -1145,7 +1200,7 @@ export class AITableModel implements PaginationModel {
     } else {
       // if moving to right
       const block = list.slice(blockStart, blockEnd + 1);
-      list.splice.apply(list, [index, 0].concat(block));
+      list.splice.apply(list, [index + 1, 0].concat(block));
       list.splice(blockStart, blockEnd - blockStart + 1);
     }
   }

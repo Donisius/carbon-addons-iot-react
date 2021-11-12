@@ -6,11 +6,10 @@ import {
   IconService,
   PlaceholderModule,
   TableHeaderItem,
-  TableItem,
 } from 'carbon-components-angular';
 import Column16 from '@carbon/icons/lib/column/16';
 
-import { AITableModel } from '../table-model.class';
+import { AITableModel, AITableItem } from '../table-model.class';
 import { AITableModule } from '../table.module';
 
 @Component({
@@ -32,31 +31,30 @@ simpleModel.setHeader([
       rowSpan: 2,
     }),
     new TableHeaderItem({ data: 'hwer', colSpan: 2, sortable: false }),
-    null,
   ],
-  [null, new TableHeaderItem({ data: 'hwer1' }), new TableHeaderItem({ data: 'hwer2' })],
+  [new TableHeaderItem({ data: 'hwer1' }), new TableHeaderItem({ data: 'hwer2' })],
 ]);
 
 simpleModel.setData([
   [
-    new TableItem({ data: 'h1_data' }),
-    new TableItem({ data: 'h2_data_1' }),
-    new TableItem({ data: 'h2_data_2' })
+    new AITableItem({ data: 'h1_data' }),
+    new AITableItem({ data: 'h2_data_1' }),
+    new AITableItem({ data: 'h2_data_2' })
   ],
   [
-    new TableItem({ data: 'h1_data' }),
-    new TableItem({ data: 'h2_data_1' }),
-    new TableItem({ data: 'h2_data_2' })
+    new AITableItem({ data: 'h1_data' }),
+    new AITableItem({ data: 'h2_data_1' }),
+    new AITableItem({ data: 'h2_data_2' })
   ],
   [
-    new TableItem({ data: 'h1_data' }),
-    new TableItem({ data: 'h2_data_1' }),
-    new TableItem({ data: 'h2_data_2' })
+    new AITableItem({ data: 'h1_data' }),
+    new AITableItem({ data: 'h2_data_1' }),
+    new AITableItem({ data: 'h2_data_2' })
   ],
   [
-    new TableItem({ data: 'h1_data' }),
-    new TableItem({ data: 'h2_data_1' }),
-    new TableItem({ data: 'h2_data_2' })
+    new AITableItem({ data: 'h1_data' }),
+    new AITableItem({ data: 'h2_data_1' }),
+    new AITableItem({ data: 'h2_data_2' })
   ]
 ]);
 
@@ -91,13 +89,13 @@ complexModel.setHeader([
 
 complexModel.setData([
   [
-    new TableItem({ data: 'h1_data' }),
-    new TableItem({ data: 'h2_data_1' }),
-    new TableItem({ data: 'h2_data_2' }),
-    new TableItem({ data: 'h4_data' }),
-    new TableItem({ data: 'h3_data_1' }),
-    new TableItem({ data: 'h3_data_2' }),
-    new TableItem({ data: 'h3_data_3' }),
+    new AITableItem({ data: 'h1_data' }),
+    new AITableItem({ data: 'h2_data_1' }),
+    new AITableItem({ data: 'h2_data_2' }),
+    new AITableItem({ data: 'h4_data' }),
+    new AITableItem({ data: 'h3_data_1' }),
+    new AITableItem({ data: 'h3_data_2' }),
+    new AITableItem({ data: 'h3_data_3' }),
   ],
 ]);
 
@@ -144,7 +142,18 @@ storiesOf('Components/Table/Column customization', module)
       props: {
         model: complexModel,
         onClick(): function() {
-          this.model.moveColumn(3, 1, 0)
+          this.model.moveColumn(0, 3, 0)
+          // this.model.moveColumn(2, 0, 0)
+          // this.model.moveColumn(1, 2, 0)
+          // this.model.moveColumn(1, 0, 1)
+          // this.model.moveColumn(2, 1, 1)
+          // this.model.moveColumn(5, 2, 1)
+          // this.model.moveColumn(3, 5, 1)
+          // this.model.moveColumn(4, 3, 1)
+          // this.model.moveColumn(2, 0, 2)
+          // this.model.moveColumn(1, 2, 2)
+          // this.model.moveColumn(0, 1, 3)
+          // this.model.moveColumn(2, 0, 3)
         },
       },
     };
